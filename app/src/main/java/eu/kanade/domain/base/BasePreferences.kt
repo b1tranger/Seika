@@ -51,4 +51,9 @@ class BasePreferences(
         Preference.appStateKey("donation_campaign_shown"),
         false,
     )
+
+    val shownSeikaDisclaimer: Preference<Boolean> = preferenceStore.getBoolean(
+        "shown_seika_disclaimer",
+        false,
+    )
 }

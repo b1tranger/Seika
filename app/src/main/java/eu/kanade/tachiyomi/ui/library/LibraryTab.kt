@@ -28,6 +28,7 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import cafe.adriel.voyager.navigator.tab.TabOptions
 import eu.kanade.presentation.category.components.ChangeCategoryDialog
+import eu.kanade.presentation.components.SeikaDisclaimerDialog
 import eu.kanade.presentation.library.DeleteLibraryMangaDialog
 import eu.kanade.presentation.library.LibrarySettingsDialog
 import eu.kanade.presentation.library.components.LibraryContent
@@ -54,12 +55,18 @@ import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.i18n.MR
+import tachiyomi.presentation.core.components.material.FloatingActionButton
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.screens.EmptyScreen
 import tachiyomi.presentation.core.screens.EmptyScreenAction
 import tachiyomi.presentation.core.screens.LoadingScreen
 import tachiyomi.source.local.isLocal
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 
 data object LibraryTab : Tab {
 
@@ -89,6 +96,8 @@ data object LibraryTab : Tab {
         val screenModel = rememberScreenModel { LibraryScreenModel() }
         val settingsScreenModel = rememberScreenModel { LibrarySettingsScreenModel() }
         val state by screenModel.state.collectAsState()
+
+        var showSeikaDisclaimer by rememberSaveable { mutableStateOf(false) }
 
         val snackbarHostState = remember { SnackbarHostState() }
 
@@ -155,6 +164,18 @@ data object LibraryTab : Tab {
                         navigator.push(MigrationConfigScreen(selection))
                     },
                 )
+            },
+            floatingActionButton = {
+                if (!state.selectionMode) {
+                    androidx.compose.material3.FloatingActionButton(
+                        onClick = { showSeikaDisclaimer = true },
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Info,
+                            contentDescription = "Seika Disclaimer",
+                        )
+                    }
+                }
             },
             snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         ) { contentPadding ->
@@ -252,6 +273,13 @@ data object LibraryTab : Tab {
                 )
             }
             null -> {}
+        }
+
+        if (showSeikaDisclaimer) {
+            SeikaDisclaimerDialog(
+                onConfirm = { showSeikaDisclaimer = false },
+                onDismissRequest = { showSeikaDisclaimer = false },
+            )
         }
 
         BackHandler(enabled = state.selectionMode || state.searchQuery != null) {

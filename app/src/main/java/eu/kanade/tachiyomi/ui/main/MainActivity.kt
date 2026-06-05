@@ -259,6 +259,7 @@ class MainActivity : BaseActivity() {
                 CheckForUpdates()
                 ShowOnboarding()
                 ShowDonationCampaign()
+                ShowSeikaDisclaimer()
             }
         }
 
@@ -341,6 +342,24 @@ class MainActivity : BaseActivity() {
             if (!preferences.shownOnboardingFlow.get() && navigator.lastItem !is OnboardingScreen) {
                 navigator.push(OnboardingScreen())
             }
+        }
+    }
+
+    @Composable
+    private fun ShowSeikaDisclaimer() {
+        var showDisclaimer by remember { mutableStateOf(!preferences.shownSeikaDisclaimer.get()) }
+        if (showDisclaimer) {
+            eu.kanade.presentation.components.SeikaDisclaimerDialog(
+                onConfirm = {
+                    preferences.shownSeikaDisclaimer.set(true)
+                    showDisclaimer = false
+                },
+                onDismissRequest = {
+                    // Do nothing, force acknowledgement on first launch if desired
+                    // or just close it. User said "must check ... if true, display ... automatically"
+                    // and "so it does not auto-pop on subsequent launches" after clicking acknowledge.
+                },
+            )
         }
     }
 

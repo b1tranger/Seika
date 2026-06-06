@@ -24,7 +24,7 @@ class ExtensionStoreService(
     suspend fun fetch(indexUrl: String): Result<ExtensionStore> {
         var updatedIndexUrl: String = indexUrl
         return try {
-            val store = network.client.newCall(GET(indexUrl)).awaitSuccess().body.source().use { source ->
+            val store = network.nonCloudflareClient.newCall(GET(indexUrl)).awaitSuccess().body.source().use { source ->
                 try {
                     protoBuf.decodeFromByteArray<NetworkExtensionStore>(source.peek().readByteArray())
                 } catch (e: IllegalArgumentException) {
@@ -47,7 +47,7 @@ class ExtensionStoreService(
                                 "Failed to add extension store '$updatedIndexUrl'"
                             }
                             updatedIndexUrl = indexUrl.replace("/index.min.json", "/repo.json")
-                            network.client.newCall(GET(updatedIndexUrl)).awaitSuccess().body.source().use {
+                            network.nonCloudflareClient.newCall(GET(updatedIndexUrl)).awaitSuccess().body.source().use {
                                 json.decodeFromBufferedSource<NetworkLegacyExtensionRepo>(it)
                             }
                         }
@@ -69,7 +69,7 @@ class ExtensionStoreService(
     suspend fun getExtensions(store: ExtensionStore): Result<List<Extension.Available>> {
         return try {
             val extensions = if (!store.isLegacy) {
-                val response = network.client.newCall(GET(store.indexUrl)).awaitSuccess()
+                val response = network.nonCloudflareClient.newCall(GET(store.indexUrl)).awaitSuccess()
                 response.body.source().use { source ->
                     try {
                         protoBuf.decodeFromByteArray<NetworkExtensionStore>(source.peek().readByteArray())
@@ -81,7 +81,7 @@ class ExtensionStoreService(
                 }
             } else {
                 val storeBaseUrl = store.indexUrl.removeSuffix("/repo.json")
-                val response = network.client.newCall(GET("$storeBaseUrl/index.min.json")).awaitSuccess()
+                val response = network.nonCloudflareClient.newCall(GET("$storeBaseUrl/index.min.json")).awaitSuccess()
                 response.body.source().use { source ->
                     json.decodeFromBufferedSource<List<NetworkLegacyExtension>>(source)
                         .map { it.toAvailableExtension(store, storeBaseUrl) }

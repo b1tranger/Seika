@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.pm.PackageInfoCompat
 import eu.kanade.domain.extension.interactor.TrustExtension
+import eu.kanade.domain.source.model.ExtensionFilterMode
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.extension.model.Extension
 import eu.kanade.tachiyomi.extension.model.LoadResult
@@ -42,9 +43,9 @@ internal object ExtensionLoader {
 
     private val preferences: SourcePreferences by injectLazy()
     private val trustExtension: TrustExtension by injectLazy()
-    private val loadNsfwSource by lazy {
-        preferences.showNsfwSource.get()
-    }
+
+    private fun getFilterMode() = preferences.extensionFilterMode.get()
+    private fun getWhitelist() = preferences.extensionFilterWhitelist.get()
 
     private const val EXTENSION_FEATURE = "tachiyomi.extension"
     private const val METADATA_SOURCE_CLASS = "tachiyomi.extension.class"
@@ -117,6 +118,9 @@ internal object ExtensionLoader {
     fun loadExtensions(context: Context): List<LoadResult> {
         val pkgManager = context.packageManager
 
+        val filterMode = getFilterMode()
+        val whitelist = getWhitelist()
+
         val installedPkgs = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             pkgManager.getInstalledPackages(PackageManager.PackageInfoFlags.of(PACKAGE_FLAGS.toLong()))
         } else {
@@ -162,7 +166,7 @@ internal object ExtensionLoader {
         // Load each extension concurrently and wait for completion
         return runBlocking {
             val deferred = extPkgs.map {
-                async { loadExtension(context, it) }
+                async { loadExtension(context, it, filterMode, whitelist) }
             }
             deferred.awaitAll()
         }
@@ -178,7 +182,7 @@ internal object ExtensionLoader {
             logcat(LogPriority.ERROR) { "Extension package is not found ($pkgName)" }
             return LoadResult.Error
         }
-        return loadExtension(context, extensionPackage)
+        return loadExtension(context, extensionPackage, ExtensionFilterMode.BLOCK_ALL_18_PLUS, emptySet(), true)
     }
 
     fun getExtensionPackageInfoFromPkgName(context: Context, pkgName: String): PackageInfo? {
@@ -223,7 +227,13 @@ internal object ExtensionLoader {
      * @param context The application context.
      * @param extensionInfo The extension to load.
      */
-    private suspend fun loadExtension(context: Context, extensionInfo: ExtensionInfo): LoadResult {
+    private suspend fun loadExtension(
+        context: Context,
+        extensionInfo: ExtensionInfo,
+        filterMode: ExtensionFilterMode,
+        whitelist: Set<String>,
+        ignoreBlock: Boolean = false,
+    ): LoadResult {
         val pkgManager = context.packageManager
         val pkgInfo = extensionInfo.packageInfo
         val appInfo = pkgInfo.applicationInfo!!
@@ -265,9 +275,19 @@ internal object ExtensionLoader {
             return LoadResult.Untrusted(extension)
         }
 
-        val isNsfw = appInfo.metaData.getInt(METADATA_NSFW) == 1
-        if (!loadNsfwSource && isNsfw) {
-            logcat(LogPriority.WARN) { "NSFW extension $pkgName not allowed" }
+        val isNsfw = appInfo.metaData.getInt(METADATA_NSFW) == 1 ||
+            pkgName.contains("nsfw", true) ||
+            pkgName.contains("adult", true) ||
+            pkgName.contains("hentai", true)
+
+        val isBlocked = !ignoreBlock && isNsfw && when (filterMode) {
+            ExtensionFilterMode.BLOCK_ALL -> true
+            ExtensionFilterMode.BLOCK_ALL_18_PLUS -> true
+            ExtensionFilterMode.ALLOW_SELECTED -> !whitelist.contains(pkgName)
+        }
+
+        if (isBlocked) {
+            logcat(LogPriority.WARN) { "Extension $pkgName is blocked by filter settings" }
             return LoadResult.Error
         }
 

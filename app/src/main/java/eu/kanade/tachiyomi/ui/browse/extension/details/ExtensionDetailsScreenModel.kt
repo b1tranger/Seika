@@ -18,6 +18,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -46,15 +47,19 @@ class ExtensionDetailsScreenModel(
     init {
         screenModelScope.launch {
             launch {
-                extensionManager.installedExtensionsFlow
-                    .map { it.firstOrNull { extension -> extension.pkgName == pkgName } }
+                combine(
+                    extensionManager.installedExtensionsFlow,
+                    extensionManager.untrustedExtensionsFlow,
+                ) { installed, untrusted ->
+                    (installed + untrusted).firstOrNull { extension -> extension.pkgName == pkgName }
+                }
                     .collectLatest { extension ->
                         if (extension == null) {
                             _events.send(ExtensionDetailsEvent.Uninstalled)
                             return@collectLatest
                         }
                         mutableState.update { state ->
-                            state.copy(extension = extension)
+                            state.copy(extension = extension as? Extension.Installed)
                         }
                     }
             }

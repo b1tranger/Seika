@@ -15,6 +15,9 @@ import eu.kanade.core.preference.asState
 import eu.kanade.core.util.addOrRemove
 import eu.kanade.core.util.insertSeparators
 import eu.kanade.domain.chapter.interactor.GetAvailableScanlators
+import eu.kanade.domain.source.model.ExtensionFilterMode
+import eu.kanade.domain.source.service.SourcePreferences
+import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.domain.chapter.interactor.SetReadStatus
 import eu.kanade.domain.chapter.interactor.SyncChaptersWithSource
 import eu.kanade.domain.manga.interactor.GetExcludedScanlators
@@ -118,8 +121,26 @@ class MangaScreenModel(
     private val setMangaCategories: SetMangaCategories = Injekt.get(),
     private val mangaRepository: MangaRepository = Injekt.get(),
     private val filterChaptersForDownload: FilterChaptersForDownload = Injekt.get(),
+    private val extensionManager: ExtensionManager = Injekt.get(),
+    private val sourcePreferences: SourcePreferences = Injekt.get(),
     val snackbarHostState: SnackbarHostState = SnackbarHostState(),
 ) : StateScreenModel<MangaScreenModel.State>(State.Loading) {
+
+    private fun isMangaBlocked(manga: Manga): Boolean {
+        val filterMode = sourcePreferences.extensionFilterMode.get()
+        val whitelist = sourcePreferences.extensionFilterWhitelist.get()
+        val extension = extensionManager.installedExtensionsFlow.value.find { ext ->
+            ext.sources.any { it.id == manga.source }
+        }
+
+        val isExtensionBlocked = extension?.isNsfw == true && when (filterMode) {
+            ExtensionFilterMode.BLOCK_ALL -> true
+            ExtensionFilterMode.BLOCK_ALL_18_PLUS -> true
+            ExtensionFilterMode.ALLOW_SELECTED -> !whitelist.contains(extension.pkgName)
+        }
+
+        return isExtensionBlocked || manga.isAdultContent()
+    }
 
     private val successState: State.Success?
         get() = state.value as? State.Success
@@ -157,7 +178,7 @@ class MangaScreenModel(
     private inline fun updateSuccessState(func: (State.Success) -> State.Success) {
         mutableState.update {
             when (it) {
-                State.Loading -> it
+                State.Loading, State.Blocked -> it
                 is State.Success -> func(it)
             }
         }
@@ -207,6 +228,12 @@ class MangaScreenModel(
 
         screenModelScope.launchIO {
             val manga = getMangaAndChapters.awaitManga(mangaId)
+
+            if (isMangaBlocked(manga)) {
+                mutableState.update { State.Blocked }
+                return@launchIO
+            }
+
             val chapters = getMangaAndChapters.awaitChapters(mangaId, applyScanlatorFilter = true)
                 .toChapterListItems(manga)
 
@@ -1124,6 +1151,9 @@ class MangaScreenModel(
     sealed interface State {
         @Immutable
         data object Loading : State
+
+        @Immutable
+        data object Blocked : State
 
         @Immutable
         data class Success(

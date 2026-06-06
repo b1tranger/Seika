@@ -1,6 +1,7 @@
 package eu.kanade.domain.source.service
 
 import eu.kanade.domain.source.interactor.SetMigrateSorting
+import eu.kanade.domain.source.model.ExtensionFilterMode
 import eu.kanade.tachiyomi.util.system.LocaleHelper
 import mihon.domain.migration.models.MigrationFlag
 import tachiyomi.core.common.preference.Preference
@@ -37,6 +38,16 @@ class SourcePreferences(
     )
 
     val showNsfwSource: Preference<Boolean> = preferenceStore.getBoolean("show_nsfw_source", true)
+
+    val extensionFilterMode: Preference<ExtensionFilterMode> = preferenceStore.getEnum(
+        "extension_filter_mode",
+        ExtensionFilterMode.BLOCK_ALL_18_PLUS,
+    )
+
+    val extensionFilterWhitelist: Preference<Set<String>> = preferenceStore.getStringSet(
+        "extension_filter_whitelist",
+        emptySet(),
+    )
 
     val migrationSortingMode: Preference<SetMigrateSorting.Mode> = preferenceStore.getEnum(
         "pref_migration_sorting",

@@ -41,7 +41,7 @@ internal class ExtensionInstaller(
     private val activeSteps = mutableMapOf<Long, MutableStateFlow<InstallStep>>()
     private val extensionInstaller = Injekt.get<BasePreferences>().extensionInstaller
 
-    private val httpClient: OkHttpClient = Injekt.get<NetworkHelper>().client
+    private val httpClient: OkHttpClient = Injekt.get<NetworkHelper>().nonCloudflareClient
 
     /**
      * Adds the given extension to the downloads queue and returns an observable containing its

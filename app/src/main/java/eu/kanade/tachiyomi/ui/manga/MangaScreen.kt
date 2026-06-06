@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.ui.manga
 import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -28,6 +29,7 @@ import eu.kanade.domain.manga.model.hasCustomCover
 import eu.kanade.domain.manga.model.toSManga
 import eu.kanade.presentation.category.components.ChangeCategoryDialog
 import eu.kanade.presentation.components.NavigatorAdaptiveSheet
+import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.manga.ChapterSettingsDialog
 import eu.kanade.presentation.manga.DuplicateMangaDialog
 import eu.kanade.presentation.manga.EditCoverAction
@@ -62,6 +64,9 @@ import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.manga.model.Manga
+import tachiyomi.i18n.MR
+import tachiyomi.presentation.core.components.material.Scaffold
+import tachiyomi.presentation.core.screens.EmptyScreen
 import tachiyomi.presentation.core.screens.LoadingScreen
 
 class MangaScreen(
@@ -93,6 +98,23 @@ class MangaScreen(
 
         if (state is MangaScreenModel.State.Loading) {
             LoadingScreen()
+            return
+        }
+
+        if (state is MangaScreenModel.State.Blocked) {
+            Scaffold(
+                topBar = {
+                    AppBar(
+                        title = "",
+                        navigateUp = navigator::pop,
+                    )
+                },
+            ) { contentPadding ->
+                EmptyScreen(
+                    stringRes = MR.strings.content_unavailable_filter,
+                    modifier = Modifier.padding(contentPadding),
+                )
+            }
             return
         }
 

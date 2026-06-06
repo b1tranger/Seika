@@ -60,8 +60,8 @@ class ExtensionsScreenModel(
                     .map { searchQueryPredicate(it ?: "") },
                 currentDownloads,
                 getExtensions.subscribe(),
-            ) { predicate, downloads, (_updates, _installed, _available, _untrusted) ->
-                buildMap {
+            ) { predicate, downloads, (_updates, _installed, _available, _untrusted, isNsfwFiltered) ->
+                isNsfwFiltered to buildMap {
                     val updates = _updates.filter(predicate).map(extensionMapper(downloads))
                     if (updates.isNotEmpty()) {
                         put(ExtensionUiModel.Header.Resource(MR.strings.ext_updates_pending), updates)
@@ -86,11 +86,12 @@ class ExtensionsScreenModel(
                     }
                 }
             }
-                .collectLatest { items ->
+                .collectLatest { (isNsfwFiltered, items) ->
                     mutableState.update { state ->
                         state.copy(
                             isLoading = false,
                             items = items,
+                            isNsfwFiltered = isNsfwFiltered,
                         )
                     }
                 }
@@ -216,6 +217,7 @@ class ExtensionsScreenModel(
         val updates: Int = 0,
         val installer: BasePreferences.ExtensionInstaller? = null,
         val searchQuery: String? = null,
+        val isNsfwFiltered: Boolean = false,
     ) {
         val isEmpty = items.isEmpty()
     }

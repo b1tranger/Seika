@@ -1,6 +1,7 @@
 package tachiyomi.data.source
 
 import androidx.paging.PagingState
+import eu.kanade.tachiyomi.core.content.ContentPreferences
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
@@ -37,6 +38,7 @@ class SourceLatestPagingSource(source: CatalogueSource) : BaseSourcePagingSource
 abstract class BaseSourcePagingSource(
     protected val source: CatalogueSource,
     private val networkToLocalManga: NetworkToLocalManga = Injekt.get(),
+    private val contentPreferences: ContentPreferences = Injekt.get(),
 ) : SourcePagingSource() {
 
     private val seenManga = hashSetOf<String>()
@@ -53,9 +55,13 @@ abstract class BaseSourcePagingSource(
                     ?: throw NoResultsException()
             }
 
+            val isStrictFilterEnabled = contentPreferences.enableStrictContentFilter.get()
             val manga = mangasPage.mangas
+                .asSequence()
                 .map { it.toDomainManga(source.id) }
                 .filter { seenManga.add(it.url) }
+                .filter { !isStrictFilterEnabled || !it.isAdultContent() }
+                .toList()
                 .let { networkToLocalManga(it) }
 
             LoadResult.Page(

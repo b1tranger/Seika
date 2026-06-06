@@ -8,6 +8,9 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import eu.kanade.domain.base.BasePreferences
+import eu.kanade.domain.source.model.ExtensionFilterMode
+import eu.kanade.domain.source.service.SourcePreferences
+import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.domain.chapter.model.toDbChapter
 import eu.kanade.domain.manga.interactor.SetMangaViewerFlags
 import eu.kanade.domain.manga.model.readerOrientation
@@ -101,6 +104,8 @@ class ReaderViewModel @JvmOverloads constructor(
     private val setMangaViewerFlags: SetMangaViewerFlags = Injekt.get(),
     private val getIncognitoState: GetIncognitoState = Injekt.get(),
     private val libraryPreferences: LibraryPreferences = Injekt.get(),
+    private val sourcePreferences: SourcePreferences = Injekt.get(),
+    private val extensionManager: ExtensionManager = Injekt.get(),
 ) : ViewModel() {
 
     private val mutableState = MutableStateFlow(State())
@@ -280,6 +285,9 @@ class ReaderViewModel @JvmOverloads constructor(
             try {
                 val manga = getManga.await(mangaId)
                 if (manga != null) {
+                    if (isMangaBlocked(manga)) {
+                        return@withIOContext Result.failure(Exception("Content unavailable due to filter restrictions"))
+                    }
                     sourceManager.isInitialized.first { it }
                     mutableState.update { it.copy(manga = manga) }
                     if (chapterId == -1L) chapterId = initialChapterId
@@ -301,6 +309,22 @@ class ReaderViewModel @JvmOverloads constructor(
                 Result.failure(e)
             }
         }
+    }
+
+    private fun isMangaBlocked(manga: Manga): Boolean {
+        val filterMode = sourcePreferences.extensionFilterMode.get()
+        val whitelist = sourcePreferences.extensionFilterWhitelist.get()
+        val extension = extensionManager.installedExtensionsFlow.value.find { ext ->
+            ext.sources.any { it.id == manga.source }
+        }
+
+        val isExtensionBlocked = extension?.isNsfw == true && when (filterMode) {
+            ExtensionFilterMode.BLOCK_ALL -> true
+            ExtensionFilterMode.BLOCK_ALL_18_PLUS -> true
+            ExtensionFilterMode.ALLOW_SELECTED -> !whitelist.contains(extension.pkgName)
+        }
+
+        return isExtensionBlocked || manga.isAdultContent()
     }
 
     /**

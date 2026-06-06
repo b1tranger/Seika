@@ -1,6 +1,8 @@
 package eu.kanade.tachiyomi.source
 
 import android.content.Context
+import eu.kanade.domain.source.model.ExtensionFilterMode
+import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.source.online.HttpSource
@@ -12,6 +14,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -28,6 +32,7 @@ class AndroidSourceManager(
     private val context: Context,
     private val extensionManager: ExtensionManager,
     private val sourceRepository: StubSourceRepository,
+    private val preferences: SourcePreferences = Injekt.get(),
 ) : SourceManager {
 
     private val _isInitialized = MutableStateFlow(false)
@@ -41,14 +46,20 @@ class AndroidSourceManager(
 
     private val stubSourcesMap = ConcurrentHashMap<Long, StubSource>()
 
-    override val catalogueSources: Flow<List<CatalogueSource>> = sourcesMapFlow.map {
-        it.values.filterIsInstance<CatalogueSource>()
-    }
+    override val catalogueSources: Flow<List<CatalogueSource>> = sourcesMapFlow
+        .map { it.values.filterIsInstance<CatalogueSource>().sortedBy { it.name } }
+        .distinctUntilChanged()
 
     init {
         scope.launch {
-            extensionManager.installedExtensionsFlow
-                .collectLatest { extensions ->
+            combine(
+                extensionManager.installedExtensionsFlow,
+                preferences.extensionFilterMode.changes(),
+                preferences.extensionFilterWhitelist.changes(),
+            ) { extensions, filterMode, whitelist ->
+                Triple(extensions, filterMode, whitelist)
+            }
+                .collectLatest { (extensions, filterMode, whitelist) ->
                     val mutableMap = ConcurrentHashMap<Long, Source>(
                         mapOf(
                             LocalSource.ID to LocalSource(
@@ -59,9 +70,17 @@ class AndroidSourceManager(
                         ),
                     )
                     extensions.forEach { extension ->
-                        extension.sources.forEach {
-                            mutableMap[it.id] = it
-                            registerStubSource(StubSource.from(it))
+                        val isAllowed = !extension.isNsfw || when (filterMode) {
+                            ExtensionFilterMode.BLOCK_ALL -> false
+                            ExtensionFilterMode.BLOCK_ALL_18_PLUS -> false
+                            ExtensionFilterMode.ALLOW_SELECTED -> whitelist.contains(extension.pkgName)
+                        }
+
+                        if (isAllowed) {
+                            extension.sources.forEach {
+                                mutableMap[it.id] = it
+                                registerStubSource(StubSource.from(it))
+                            }
                         }
                     }
                     sourcesMapFlow.value = mutableMap

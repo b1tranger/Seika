@@ -1,0 +1,11 @@
+make a logo in reference to the provided image (mihon). follow the following info:
+
+main title of the project: Seika (清華 / 聖火)
+
+idea for logo:
+The English Lettermark (The Geometric "S")
+If you want a pure app-icon style that matches the simplicity of modern open-source forks:
+
+The Visual: A continuous, flowing ribbon that forms the letter 'S'.
+
+The Twist: One loop of the 'S' can look like a flame, while the other loop looks like a leaf or petal, subtly merging both meanings of Sei

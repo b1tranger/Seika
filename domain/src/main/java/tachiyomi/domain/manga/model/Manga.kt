@@ -73,6 +73,10 @@ data class Manga(
         return chapterFlags and CHAPTER_SORT_DIR_MASK == CHAPTER_SORT_DESC
     }
 
+    fun isAdultContent(): Boolean {
+        return genre?.any { it.lowercase() in ADULT_TAGS } ?: false
+    }
+
     companion object {
         // Generic filter that does not filter anything
         const val SHOW_ALL = 0x00000000L
@@ -102,6 +106,8 @@ data class Manga(
         const val CHAPTER_DISPLAY_NAME = 0x00000000L
         const val CHAPTER_DISPLAY_NUMBER = 0x00100000L
         const val CHAPTER_DISPLAY_MASK = 0x00100000L
+
+        private val ADULT_TAGS = setOf("pornographic", "hentai", "adult", "smut", "nsfw")
 
         fun create() = Manga(
             id = -1L,
